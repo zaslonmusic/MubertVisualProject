@@ -1,0 +1,281 @@
+<html lang="en">
+	<head>
+		<title>MUBERT AV by Zaslon</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        
+        <!-- Внешний стиль, основной -->          
+		<link rel="stylesheet" href="index.css">
+	</head>
+
+	<body>
+		<div id="container"></div>
+		<div id="info">
+            <a href="http://play.mubert.com" target="_blank" rel="noopener">MUBERT</a> 
+            audio-visual concept by 
+            <a href="http://play.mubert.com/zaslonmusic" target="_blank" rel="noopener">@zaslonmusic</a>
+        </div>
+
+        <!-- Загрузка скриптов -->
+        
+        <!-- Библиотечные -->        
+        <script src="js/three.js"></script>
+        <script src="js/WebGL.js"></script>
+        <script src="js/libs/stats.min.js"></script>
+        <script src="js/geometries/hilbert3D.js"></script>
+
+        <!-- Какая то магия, нужно разобраться -->   
+		<script type="x-shader/x-vertex" id="vertexshader">
+			attribute float size;
+			attribute vec3 customColor;
+			varying vec3 vColor;
+			void main() 
+            {
+				vColor = customColor;
+				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+				gl_PointSize = size * ( 300.0 / -mvPosition.z );
+				gl_Position = projectionMatrix * mvPosition;
+			}
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentshader">
+			uniform vec3 color;
+			uniform sampler2D texture;
+			varying vec3 vColor;
+			void main() 
+            {
+				gl_FragColor = vec4( color * vColor, 1.0 );
+				gl_FragColor = gl_FragColor * texture2D( texture, gl_PointCoord );
+				if ( gl_FragColor.a < ALPHATEST ) discard;
+			}
+		</script>
+        
+        
+        <!-- Основной скрипт -->
+		<script src="index.js">
+            // Что это?
+            if ( WEBGL.isWebGLAvailable(  ) === false ) { document.body.appendChild( WEBGL.getWebGLErrorMessage(  ) ); }
+
+            // Переменные основные
+            var renderer, scene, camera, stats;
+            var particles;
+            
+            // Менее понятные
+            var raycaster, intersects;
+            var mouse, INTERSECTED;
+            
+            // Настройки
+                var fov = 60;
+                var scale = fov * 0.03
+                var PARTICLES_SIZE = 25 / scale;
+                var PARTICLES_COUNT = 3;
+
+            // Как это работает?
+            app(  )
+            animate(  )
+            drawWave(  ) 
+            audioSetup(  ) 
+            
+                function audioSetup(  )
+                {
+                    var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    var analyser = this.audioCtx.createAnalyser();
+                }
+            
+                function drawWave(  )
+                {
+                    this.analyser.getByteFrequencyData(this.frequencyData);
+
+                    for (let i = 0; i < 64; i++) 
+                    {
+                        const p = this.frequencyData[i];
+                        const s = this.spheres[i];
+                        const z = s.position;
+
+                        TweenMax.to( z, .2, { y: p / 40 } );
+                    }
+                }
+            
+                function app(  )
+                { 
+                    // Сцена и камера
+                    var container = document.getElementById( 'container' );
+                    scene = new THREE.Scene(  );
+                    camera = new THREE.PerspectiveCamera( fov, window.innerWidth / window.innerHeight, 1, 10000 );
+                    camera.position.z = 250 / scale;
+
+                    // Сфера черная, внутри                
+                    var geometry = new THREE.SphereGeometry( 19, 48, 48 );
+                    var material = new THREE.MeshBasicMaterial( {color: 0x000000} );
+                    var sphere = new THREE.Mesh( geometry, material );
+                    scene.add( sphere );
+
+                    // Круг белый, снаружи
+                    var geometry = new THREE.CircleGeometry( 20, 48 );
+                    var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+                    var circle = new THREE.Mesh( geometry, material );
+                    scene.add( circle );
+
+                    // Точки
+                    var verticesA = new THREE.BoxGeometry( 50, 50, 50, PARTICLES_COUNT-1, PARTICLES_COUNT-1, PARTICLES_COUNT-1 ).vertices;
+                    var positions = new Float32Array( verticesA.length * 3 );
+                    var colors = new Float32Array( verticesA.length * 3 );
+                    var sizes = new Float32Array( verticesA.length );
+                    var vertex;
+                    var color = new THREE.Color(  );
+
+                    for ( var i = 0, l = verticesA.length; i < l; i ++ ) 
+                        {
+                        vertex = verticesA[ i ];
+                        vertex.toArray( positions, i * 3 );
+                        color.setHSL( 0.01 + 0.1 * ( i / l ), 2.0, 2.5 );
+                        color.toArray( colors, i * 3 );
+                        sizes[ i ] = PARTICLES_SIZE * 0.5;
+                        }
+
+                    // Мэш
+                    var icosahedronGeometry = new THREE.IcosahedronGeometry(30, 4);
+                    var lambertMaterial = new THREE.MeshBasicMaterial
+                        ({
+                        color: 0xff00ee,
+                        wireframe: true
+                        });
+
+                    var ball = new THREE.Mesh(icosahedronGeometry, lambertMaterial);
+                    // Позиция и движение
+                    ball.position.set(0, 0, 0);
+                    scene.add(ball);
+
+
+
+                    // Линии
+                    // var geometry = new THREE.Geometry();
+                    // geometry.vertices.push(new THREE.Vector3( -50, 0, 0) );
+                    // geometry.vertices.push(new THREE.Vector3( 0, 50, 0) );
+                    // geometry.vertices.push(new THREE.Vector3( 50, 0, 0) );
+                    // var material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+                    // var line = new THREE.Line( geometry, material );
+                    // scene.add( line );
+
+                    
+                    // Что то с геометрией
+                    var geometry = new THREE.BufferGeometry(  );
+                    geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+                    geometry.addAttribute( 'customColor', new THREE.BufferAttribute( colors, 3 ) );
+                    geometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+                    
+                    // Настройки материала
+                    var material = new THREE.ShaderMaterial( {
+                        uniforms: {
+                            color: { value: new THREE.Color( 0xffffff ) },
+                            texture: { value: new THREE.TextureLoader().load( "js/textures/mubert.png" ) }
+                        },
+                        vertexShader: document.getElementById( 'vertexshader' ).textContent,
+                        fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+                        alphaTest: 0.9
+                    } );
+
+
+                    //
+                    particles = new THREE.Points( geometry, material );
+                    scene.add( particles );
+                    
+        
+                    // Прорисовка
+                    renderer = new THREE.WebGLRenderer();
+                    renderer.setPixelRatio( window.devicePixelRatio );
+                    renderer.setSize( window.innerWidth, window.innerHeight );
+                    container.appendChild( renderer.domElement );
+                    
+                    //
+                    raycaster = new THREE.Raycaster();
+                    mouse = new THREE.Vector2();
+                    
+                    //
+                    stats = new Stats();
+                    container.appendChild( stats.dom );
+                    
+                    //
+                    window.addEventListener( 'resize', onWindowResize, false );
+                    document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+                }
+                
+                function animate(  ) 
+                {
+                    requestAnimationFrame( animate );
+                    render();
+                    stats.update();
+                }
+            
+                // Мяч
+                function makeRoughBall(mesh, bassFr, treFr)
+                {
+                        mesh.geometry.vertices.forEach(function (vertex, i) 
+                        {
+                            var offset = mesh.geometry.parameters.radius;
+                            var amp = guiControls.amp;
+                            var time = window.performance.now();
+                            vertex.normalize();
+                            var distance = (offset + bassFr ) + noise.noise3D(vertex.x + time * 0.00007, vertex.y +  time * 0.00008, vertex.z +  time * 0.00009) * amp * treFr;
+                            vertex.multiplyScalar(distance);
+                        });
+                        mesh.geometry.verticesNeedUpdate = true;
+                        mesh.geometry.normalsNeedUpdate = true;
+                        mesh.geometry.computeVertexNormals();
+                        mesh.geometry.computeFaceNormals();
+}
+            
+                // Непонятно
+                function onDocumentMouseMove( event ) 
+                {
+                    event.preventDefault();
+                    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+                    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+                }
+               
+                // Обновление контента при изменении размера окна
+                function onWindowResize(  ) 
+                {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix(  );
+                    renderer.setSize( window.innerWidth, window.innerHeight );
+                }
+            
+
+            
+                // Не ясно что к чему
+                function render(  ) 
+                {
+                    // Движение частиц
+                    particles.rotation.x += 0.0015;
+                    particles.rotation.y += 0.0012;
+                /*  
+                    ball.rotation.x += 0.0012;
+                    ball.rotation.y += 0.0015; 
+                */
+                    var geometry = particles.geometry;
+                    var attributes = geometry.attributes;
+                    raycaster.setFromCamera( mouse, camera );
+                    intersects = raycaster.intersectObject( particles );
+                    
+                    if ( intersects.length > 0 ) {
+                        if ( INTERSECTED != intersects[ 0 ].index ) {
+                            attributes.size.array[ INTERSECTED ] = PARTICLES_SIZE;
+                            INTERSECTED = intersects[ 0 ].index;
+                            attributes.size.array[ INTERSECTED ] = PARTICLES_SIZE * 1.25;
+                            attributes.size.needsUpdate = true;
+                        }
+                    } else if ( INTERSECTED !== null ) {
+                        attributes.size.array[ INTERSECTED ] = PARTICLES_SIZE;
+                        attributes.size.needsUpdate = true;
+                        INTERSECTED = null;
+                    }
+                    renderer.render( scene, camera );
+                }
+
+
+        </script>
+
+	</body>
+
+</html>

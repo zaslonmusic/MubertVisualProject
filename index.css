@@ -1,0 +1,28 @@
+@font-face 
+        {
+    font-family: "Mubert";
+    src: url("media/Supply-Regular.otf");
+    font-weight: bold;
+        }
+body 
+        {
+        color: #ffffff;
+        background-color: #000000;
+        margin: 0px;
+        overflow: hidden;
+        }
+#info   
+        {
+        position: absolute;
+        top: 0px;
+        width: 100%;
+        padding: 5px;
+        font-family: Mubert;
+        font-size: 13px;
+        text-align: center;
+        font-weight: bold;
+        }
+a 
+        {
+        color: #fff;
+        }
